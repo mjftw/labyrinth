@@ -90,7 +90,7 @@ impl Board {
             })
             .collect();
 
-        // These should always be 1 more free tile than free locations
+        // There should always be 1 more free tile than free location
         assert_eq!(free_locations.len(), free_tiles.len() - 1);
 
         free_tiles.shuffle(rng);
