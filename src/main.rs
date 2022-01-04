@@ -89,18 +89,6 @@ impl Board {
         path_right: true,
     }; 33];
 
-    const INSERT_LOCATIONS: [Location; 9] = [
-        Location(1, 1),
-        Location(1, 3),
-        Location(1, 5),
-        Location(3, 1),
-        Location(3, 3),
-        Location(3, 5),
-        Location(5, 1),
-        Location(5, 3),
-        Location(5, 5),
-    ];
-
     /// Create a new board including the fixed tiles, with free tiles placed using the random number generator
     pub fn new<R: Rng>(rng: &mut R) -> Board {
         let fixed_tiles = Board::FIXED_TILES
@@ -143,15 +131,93 @@ impl Board {
         )
     }
 
-    /// Try to insert a tile at a given location, sliding all the tiles in the row/column by 1.
-    /// Inserting a tile pushes the tile opposite off the board.
-    /// Returns Some(tile) with the pushed off tile if insertion was possible, and None if not.
+    /// Rotate row y left, replacing the rightmost tile with the spare tile
+    fn rotate_left(&mut self, y: usize, tile_rotation: Rotation) {
+        let pushed_out = self.0.remove(&Location(0, y)).unwrap().0;
+
+        for x in (1..7).rev() {
+            let move_to = Location(x - 1, y);
+            let move_from = Location(x, y);
+            let moving_tile = self.0.remove(&move_from).unwrap();
+            self.0.insert(move_to, moving_tile);
+        }
+
+        self.0
+            .insert(Location(6, y), PlacedTile(self.1, tile_rotation));
+        self.1 = pushed_out;
+    }
+
+    /// Rotate row y right, replacing the leftmost tile with the spare tile
+    fn rotate_right(&mut self, y: usize, tile_rotation: Rotation) {
+        let pushed_out = self.0.remove(&Location(6, y)).unwrap().0;
+
+        for x in 1..7 {
+            let move_to = Location(x, y);
+            let move_from = Location(x - 1, y);
+            let moving_tile = self.0.remove(&move_from).unwrap();
+            self.0.insert(move_to, moving_tile);
+        }
+
+        self.0
+            .insert(Location(0, y), PlacedTile(self.1, tile_rotation));
+        self.1 = pushed_out;
+    }
+
+    /// Rotate column x up, replacing the bottommost tile with the spare tile
+    fn rotate_up(&mut self, x: usize, tile_rotation: Rotation) {
+        let pushed_out = self.0.remove(&Location(x, 0)).unwrap().0;
+
+        for y in (1..7).rev() {
+            let move_to = Location(x, y - 1);
+            let move_from = Location(x, y);
+            let moving_tile = self.0.remove(&move_from).unwrap();
+            self.0.insert(move_to, moving_tile);
+        }
+
+        self.0
+            .insert(Location(x, 6), PlacedTile(self.1, tile_rotation));
+        self.1 = pushed_out;
+    }
+
+    /// Rotate column x down, replacing the topmost tile with the spare tile
+    fn rotate_down(&mut self, x: usize, tile_rotation: Rotation) {
+        let pushed_out = self.0.remove(&Location(x, 6)).unwrap().0;
+
+        for y in 1..7 {
+            let move_to = Location(x, y);
+            let move_from = Location(x, y - 1);
+            let moving_tile = self.0.remove(&move_from).unwrap();
+            self.0.insert(move_to, moving_tile);
+        }
+
+        self.0
+            .insert(Location(x, 0), PlacedTile(self.1, tile_rotation));
+        self.1 = pushed_out;
+    }
+
+    /// Try to insert the extra tile at a given location, sliding all the tiles in the row/column by 1.
+    /// Inserting a tile pushes the tile opposite off the board, which becomes the new extra tile.
+    /// Returns Ok(()) if insertion was possible, and Err(()) if not.
     /// Valid insertion locations are (1,1), (1,3), (1,5), (3,1), (3,3), (3,5), (5,1), (5,3), (5,5)
-    pub fn insert(&mut self, tile: &PlacedTile, location: &Location) -> Option<Tile> {
-        if Board::INSERT_LOCATIONS.iter().contains(location) {
-            None
-        } else {
-            None
+    pub fn insert_spare(&mut self, insert_at: Location, rotation: Rotation) -> Result<(), ()> {
+        match insert_at {
+            Location(0, y) => {
+                self.rotate_right(y, rotation);
+                Ok(())
+            }
+            Location(6, y) => {
+                self.rotate_left(y, rotation);
+                Ok(())
+            }
+            Location(x, 0) => {
+                self.rotate_down(x, rotation);
+                Ok(())
+            }
+            Location(x, 6) => {
+                self.rotate_up(x, rotation);
+                Ok(())
+            }
+            _ => Err(()),
         }
     }
 }
