@@ -7,6 +7,7 @@ use rand::{
 use std::collections::HashMap;
 
 //TODO
+#[derive(Copy, Clone)]
 enum Item {
     Ruby,
     Sword,
@@ -14,14 +15,16 @@ enum Item {
     Mouse,
 }
 
+#[derive(Copy, Clone)]
 struct Tile {
     item: Option<Item>,
     path_up: bool,
+    path_right: bool,
     path_down: bool,
     path_left: bool,
-    path_right: bool,
 }
 
+#[derive(Copy, Clone)]
 enum Rotation {
     Zero,
     Clockwise90,
@@ -39,7 +42,7 @@ impl Distribution<Rotation> for Standard {
         }
     }
 }
-
+#[derive(Copy, Clone)]
 struct PlacedTile(Tile, Rotation);
 
 impl PlacedTile {
@@ -54,7 +57,7 @@ impl PlacedTile {
     }
 }
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq, Copy, Clone)]
 struct Location(usize, usize);
 
 type BoardTiles = HashMap<Location, PlacedTile>;
@@ -63,37 +66,63 @@ type BoardTiles = HashMap<Location, PlacedTile>;
 struct Board(BoardTiles, Tile);
 
 impl Board {
+    //TODO:
     /// The tiles that are fixed to the board and cannot be moved or rotated
-    fn fixed_tiles() -> BoardTiles {
-        //TODO
-        HashMap::new()
-    }
+    const FIXED_TILES: [(Location, Tile); 16] = [(
+        Location(0, 0),
+        Tile {
+            item: None,
+            path_up: false,
+            path_right: false,
+            path_down: false,
+            path_left: false,
+        },
+    ); 16];
 
+    //TODO:
     /// The tiles that are free to be placed or rotated
-    fn free_tiles() -> Vec<Tile> {
-        //TODO
-        Vec::new()
-    }
+    const FREE_TILES: [Tile; 33] = [Tile {
+        item: None,
+        path_up: true,
+        path_down: true,
+        path_left: true,
+        path_right: true,
+    }; 33];
+
+    const INSERT_LOCATIONS: [Location; 9] = [
+        Location(1, 1),
+        Location(1, 3),
+        Location(1, 5),
+        Location(3, 1),
+        Location(3, 3),
+        Location(3, 5),
+        Location(5, 1),
+        Location(5, 3),
+        Location(5, 5),
+    ];
 
     /// Create a new board including the fixed tiles, with free tiles placed using the random number generator
     pub fn new<R: Rng>(rng: &mut R) -> Board {
-        let fixed_tiles = Board::fixed_tiles();
+        let fixed_tiles = Board::FIXED_TILES
+            .clone()
+            .map(|(location, tile)| (location, PlacedTile(tile, Rotation::Zero)));
 
-        // There should always be 16 fixed tiles
-        assert_eq!(fixed_tiles.len(), 16);
-
-        let mut free_tiles: Vec<PlacedTile> = Board::free_tiles()
+        let mut free_tiles: Vec<PlacedTile> = Board::FREE_TILES
+            .clone()
             .into_iter()
             .map(|tile| PlacedTile(tile, rng.gen()))
             .collect();
 
-        // There should always be 33 free tiles
-        assert_eq!(fixed_tiles.len(), 33);
-
         let mut free_locations: Vec<Location> = (0..7)
             .permutations(2)
             .filter_map(|xy| match &xy[..] {
-                &[x, y] if fixed_tiles.keys().contains(&Location(x, y)) => None,
+                &[x, y]
+                    if fixed_tiles
+                        .map(|(location, _)| location)
+                        .contains(&Location(x, y)) =>
+                {
+                    None
+                }
                 &[x, y] => Some(Location(x, y)),
                 _ => None,
             })
@@ -114,12 +143,16 @@ impl Board {
         )
     }
 
-    /// Try to insert a tile at a given location.
+    /// Try to insert a tile at a given location, sliding all the tiles in the row/column by 1.
     /// Inserting a tile pushes the tile opposite off the board.
     /// Returns Some(tile) with the pushed off tile if insertion was possible, and None if not.
+    /// Valid insertion locations are (1,1), (1,3), (1,5), (3,1), (3,3), (3,5), (5,1), (5,3), (5,5)
     pub fn insert(&mut self, tile: &PlacedTile, location: &Location) -> Option<Tile> {
-        //TODO
-        None
+        if Board::INSERT_LOCATIONS.iter().contains(location) {
+            None
+        } else {
+            None
+        }
     }
 }
 
