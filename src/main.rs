@@ -77,16 +77,25 @@ impl Board {
 
     /// Create a new board including the fixed tiles, with free tiles placed using the random number generator
     pub fn new<R: Rng>(rng: &mut R) -> Board {
+        let fixed_tiles = Board::fixed_tiles();
+
+        // There should always be 16 fixed tiles
+        assert_eq!(fixed_tiles.len(), 16);
+
         let mut free_tiles: Vec<PlacedTile> = Board::free_tiles()
             .into_iter()
             .map(|tile| PlacedTile(tile, rng.gen()))
             .collect();
 
+        // There should always be 33 free tiles
+        assert_eq!(fixed_tiles.len(), 33);
+
         let mut free_locations: Vec<Location> = (0..7)
             .permutations(2)
-            .map(|xy| match &xy[..] {
-                &[x, y] => Location(x, y),
-                _ => panic!("Error building free locations"),
+            .filter_map(|xy| match &xy[..] {
+                &[x, y] if fixed_tiles.keys().contains(&Location(x, y)) => None,
+                &[x, y] => Some(Location(x, y)),
+                _ => None,
             })
             .collect();
 
@@ -100,10 +109,7 @@ impl Board {
         let placed_tiles = free_locations.into_iter().zip(free_tiles);
 
         Board(
-            Board::fixed_tiles()
-                .into_iter()
-                .chain(placed_tiles)
-                .collect(),
+            fixed_tiles.into_iter().chain(placed_tiles).collect(),
             extra_tile,
         )
     }
