@@ -5,8 +5,11 @@ use rand::{
     Rng,
 };
 use std::collections::HashMap;
+use std::convert::From;
+use std::fmt;
 use std::iter::Iterator;
 
+//TODO: Add all items
 #[derive(Copy, Clone)]
 enum Item {
     Chest,
@@ -56,6 +59,68 @@ struct Tile {
     path_right: bool,
     path_down: bool,
     path_left: bool,
+}
+
+impl From<PlacedTile> for Tile {
+    fn from(placed_tile: PlacedTile) -> Self {
+        let (path_up, path_right, path_down, path_left) = match placed_tile.1 {
+            Rotation::Zero => (
+                placed_tile.0.path_up,
+                placed_tile.0.path_right,
+                placed_tile.0.path_down,
+                placed_tile.0.path_left,
+            ),
+            Rotation::Clockwise90 => (
+                placed_tile.0.path_left,
+                placed_tile.0.path_up,
+                placed_tile.0.path_right,
+                placed_tile.0.path_down,
+            ),
+            Rotation::Clockwise180 => (
+                placed_tile.0.path_down,
+                placed_tile.0.path_left,
+                placed_tile.0.path_up,
+                placed_tile.0.path_right,
+            ),
+            Rotation::Clockwise270 => (
+                placed_tile.0.path_right,
+                placed_tile.0.path_down,
+                placed_tile.0.path_left,
+                placed_tile.0.path_up,
+            ),
+        };
+
+        Tile {
+            marking: placed_tile.0.marking,
+            path_up,
+            path_right,
+            path_down,
+            path_left,
+        }
+    }
+}
+
+impl fmt::Debug for Tile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let w = "▒";
+        let p = " ";
+        let c = "+";
+        write!(
+            f,
+            "{}{}{}\n\
+             {}{}{}\n\
+             {}{}{}",
+            w,
+            if self.path_up { p } else { w },
+            w,
+            if self.path_left { p } else { w },
+            c,
+            if self.path_right { p } else { w },
+            w,
+            if self.path_down { p } else { w },
+            w,
+        )
+    }
 }
 
 impl Tile {
@@ -162,11 +227,95 @@ impl Distribution<Rotation> for Standard {
 #[derive(Copy, Clone)]
 struct PlacedTile(Tile, Rotation);
 
+impl fmt::Debug for PlacedTile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let tile: Tile = Tile::from(*self);
+        Tile::fmt(&tile, f)
+    }
+}
+
 #[derive(Hash, Debug, PartialEq, Eq, Copy, Clone)]
 struct Location(usize, usize);
 
 /// A board containing all tiles placed on the board and the spare extra tile
 struct Board(HashMap<Location, PlacedTile>, Tile);
+
+struct BoardIter<'a> {
+    board: &'a Board,
+    locations: Box<dyn Iterator<Item = Location>>,
+}
+
+impl<'a> Iterator for BoardIter<'a> {
+    type Item = &'a PlacedTile;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.locations
+            .next()
+            .map(|location| self.board.0.get(&location).unwrap())
+    }
+}
+
+impl<'a> IntoIterator for &'a Board {
+    type Item = &'a PlacedTile;
+    type IntoIter = BoardIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        BoardIter {
+            board: self,
+            locations: Board::locations(),
+        }
+    }
+}
+
+impl fmt::Debug for Board {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let col_sep = " ";
+        let row_sep = " ";
+        let tile_line_strs: Vec<Vec<String>> = self
+            .into_iter()
+            .map(|tile| format!("{:?}", tile))
+            .map(|tile_strings| {
+                tile_strings
+                    .lines()
+                    .map(String::from)
+                    .collect::<Vec<String>>()
+            })
+            .collect();
+
+        let board_row_strs: Vec<String> = tile_line_strs
+            .chunks(7)
+            .map(|row_strs| {
+                let num_cols = row_strs.first().unwrap().len();
+                let col_strs: Vec<String> = (0..num_cols)
+                    .map(|col| {
+                        row_strs
+                            .iter()
+                            .map(|tile_str| tile_str.iter().nth(col).unwrap())
+                            .join(col_sep)
+                    })
+                    .collect();
+
+                col_strs.join("\n")
+            })
+            .collect();
+
+        let num_col_chars = *board_row_strs
+            .first()
+            .unwrap()
+            .lines()
+            .map(|line| line.len())
+            .take(1)
+            .collect::<Vec<usize>>()
+            .first()
+            .unwrap();
+
+        let board_str: String = board_row_strs
+            .iter()
+            .intersperse(&row_sep.repeat(num_col_chars))
+            .join("\n");
+
+        write!(f, "{}", board_str)
+    }
+}
 
 impl Board {
     /// The tiles that are fixed to the board and cannot be moved or rotated
@@ -409,4 +558,9 @@ impl Board {
 
 fn main() {
     println!("Hello, world!");
+
+    let mut rng = rand::thread_rng();
+    let board = Board::new(&mut rng);
+
+    println!("{:?}", board);
 }
