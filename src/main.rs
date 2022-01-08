@@ -1,4 +1,11 @@
+use itertools::Itertools;
+use rand::{
+    distributions::{Distribution, Standard},
+    seq::SliceRandom,
+    Rng,
+};
 use std::collections::HashMap;
+use std::iter::Iterator;
 
 #[derive(Copy, Clone)]
 enum Item {
@@ -139,6 +146,17 @@ enum Rotation {
     Clockwise90,
     Clockwise180,
     Clockwise270,
+}
+
+impl Distribution<Rotation> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Rotation {
+        match rng.gen_range(0..=3) {
+            0 => Rotation::Zero,
+            1 => Rotation::Clockwise90,
+            2 => Rotation::Clockwise180,
+            _ => Rotation::Clockwise270,
+        }
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -340,6 +358,53 @@ impl Board {
         Tile::CORNER_RIGHT_UP,
         Tile::CORNER_RIGHT_UP,
     ];
+
+    pub fn locations() -> Box<dyn Iterator<Item = Location>> {
+        let mut l: Vec<_> = (0..7)
+            .permutations(2)
+            .chain((0..7).map(|i| vec![i, i]))
+            .collect();
+        l.sort_by_key(|a| match &a[..] {
+            &[x, y] => (y, x),
+            _ => (0, 0),
+        });
+
+        Box::new(l.into_iter().filter_map(|a| match &a[..] {
+            &[x, y] => Some(Location(x, y)),
+            _ => None,
+        }))
+    }
+
+    /// Create a new board including the fixed tiles, with free tiles placed using the random number generator
+    pub fn new<R: Rng>(rng: &mut R) -> Board {
+        let fixed_tiles = Board::FIXED_TILES
+            .clone()
+            .map(|(location, tile)| (location, PlacedTile(tile, Rotation::Zero)));
+
+        let mut free_tiles: Vec<PlacedTile> = Board::FREE_TILES
+            .clone()
+            .into_iter()
+            .map(|tile| PlacedTile(tile, rng.gen()))
+            .collect();
+
+        let mut free_locations: Vec<Location> = Board::locations()
+            .filter(|location| !fixed_tiles.map(|(location, _)| location).contains(location))
+            .collect();
+
+        // There should always be 1 more free tile than free location
+        assert_eq!(free_locations.len(), free_tiles.len() - 1);
+
+        free_tiles.shuffle(rng);
+        free_locations.shuffle(rng);
+
+        let extra_tile = free_tiles.pop().unwrap().0;
+        let placed_tiles = free_locations.into_iter().zip(free_tiles);
+
+        Board(
+            fixed_tiles.into_iter().chain(placed_tiles).collect(),
+            extra_tile,
+        )
+    }
 }
 
 fn main() {
