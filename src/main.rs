@@ -152,7 +152,7 @@ impl From<PlacedTile> for Tile {
 impl fmt::Debug for Tile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let w = "▒";
-        let p = " ";
+        let p = "░";
         write!(
             f,
             "{}{}{}\n\
@@ -165,7 +165,7 @@ impl fmt::Debug for Tile {
             if self.marking.is_some() {
                 format!("{}", self.marking.unwrap())
             } else {
-                " ".to_string()
+                p.to_string()
             },
             if self.path_right { p } else { w },
             w,
