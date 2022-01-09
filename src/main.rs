@@ -308,18 +308,6 @@ impl fmt::Debug for PlacedTile {
     }
 }
 
-impl PlacedTile {
-    /// Rotate the placed tile clockwise by 90 degrees
-    pub fn rotate_cw(&mut self) {
-        self.rotation = match self.rotation {
-            Rotation::Zero => Rotation::Clockwise90,
-            Rotation::Clockwise90 => Rotation::Clockwise180,
-            Rotation::Clockwise180 => Rotation::Clockwise270,
-            Rotation::Clockwise270 => Rotation::Zero,
-        }
-    }
-}
-
 #[derive(Hash, Debug, PartialEq, Eq, Copy, Clone)]
 struct Location(usize, usize);
 
