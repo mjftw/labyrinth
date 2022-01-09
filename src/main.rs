@@ -157,19 +157,39 @@ impl fmt::Debug for Tile {
             f,
             "{}{}{}\n\
              {}{}{}\n\
+             {}{}{}\n\
+             {}{}{}\n\
+             {}{}{}\n\
              {}{}{}",
             w,
-            if self.path_up { p } else { w },
+            if self.path_up {
+                p.repeat(4)
+            } else {
+                w.repeat(4)
+            },
             w,
             if self.path_left { p } else { w },
             if self.marking.is_some() {
-                format!("{}", self.marking.unwrap())
+                format!("{}{}{}", p, self.marking.unwrap(), p.repeat(2))
             } else {
-                p.to_string()
+                p.repeat(4)
             },
             if self.path_right { p } else { w },
+            if self.path_left { p } else { w },
+            p.repeat(4),
+            if self.path_right { p } else { w },
+            if self.path_left { p } else { w },
+            p.repeat(4),
+            if self.path_right { p } else { w },
+            if self.path_left { p } else { w },
+            p.repeat(4),
+            if self.path_right { p } else { w },
             w,
-            if self.path_down { p } else { w },
+            if self.path_down {
+                p.repeat(4)
+            } else {
+                w.repeat(4)
+            },
             w,
         )
     }
@@ -374,7 +394,7 @@ impl fmt::Debug for Board {
             .first()
             .unwrap()
             .lines()
-            .map(|line| line.len())
+            .map(|line| line.chars().count())
             .take(1)
             .collect::<Vec<usize>>()
             .first()
