@@ -40,6 +40,39 @@ enum Item {
     Lizard,
 }
 
+impl fmt::Display for Item {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let icon = match self {
+            Item::Chest => "0",
+            Item::Gnome => "1",
+            Item::Dragon => "2",
+            Item::Unicorn => "3",
+            Item::Ghost => "4",
+            Item::Candle => "5",
+            Item::Cat => "6",
+            Item::Keys => "7",
+            Item::Book => "8",
+            Item::Spider => "9",
+            Item::Crown => "a",
+            Item::Sword => "b",
+            Item::Goblet => "c",
+            Item::Mouse => "d",
+            Item::Ring => "e",
+            Item::Potion => "f",
+            Item::Beetle => "g",
+            Item::Owl => "h",
+            Item::Gem => "i",
+            Item::Genie => "j",
+            Item::Bat => "k",
+            Item::Sack => "l",
+            Item::Helmet => "m",
+            Item::Lizard => "n",
+        };
+
+        write!(f, "{}", icon)
+    }
+}
+
 #[derive(Copy, Clone)]
 enum Player {
     Player1,
@@ -52,6 +85,20 @@ enum Player {
 enum TileMarking {
     Item(Item),
     PlayerStart(Player),
+}
+
+impl fmt::Display for TileMarking {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let icon = match self {
+            TileMarking::Item(item) => format!("{}", item),
+            TileMarking::PlayerStart(Player::Player1) => "♠".to_string(), //red
+            TileMarking::PlayerStart(Player::Player2) => "♥".to_string(), //blue
+            TileMarking::PlayerStart(Player::Player3) => "♦".to_string(), //yellow
+            TileMarking::PlayerStart(Player::Player4) => "♣".to_string(), //green
+        };
+
+        write!(f, "{}", icon)
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -106,7 +153,6 @@ impl fmt::Debug for Tile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let w = "▒";
         let p = " ";
-        let c = "+";
         write!(
             f,
             "{}{}{}\n\
@@ -116,7 +162,11 @@ impl fmt::Debug for Tile {
             if self.path_up { p } else { w },
             w,
             if self.path_left { p } else { w },
-            c,
+            if self.marking.is_some() {
+                format!("{}", self.marking.unwrap())
+            } else {
+                " ".to_string()
+            },
             if self.path_right { p } else { w },
             w,
             if self.path_down { p } else { w },
