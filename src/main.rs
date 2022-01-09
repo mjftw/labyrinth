@@ -10,7 +10,7 @@ use rand::{
 use std::collections::HashMap;
 use std::convert::From;
 use std::fmt;
-use std::iter::Iterator;
+use std::iter::{self, Iterator};
 
 #[derive(Copy, Clone)]
 enum Item {
@@ -596,6 +596,31 @@ impl Board {
         }))
     }
 
+    /// Check whether placing a tile with a certain rotation at a certain location is allowed
+    /// No tile can be placed so that one of the openings leads off the board
+    fn tile_placement_ok(location: &Location, placed_tile: &PlacedTile) -> bool {
+        let rotated_tile = Tile::from(*placed_tile);
+        match location {
+            // top left corner
+            Location(0, 0) => !rotated_tile.path_up && !rotated_tile.path_left,
+            // top right corner
+            Location(6, 0) => !rotated_tile.path_up && !rotated_tile.path_right,
+            // bottom right corner
+            Location(6, 6) => !rotated_tile.path_down && !rotated_tile.path_right,
+            // bottom left corner
+            Location(0, 6) => !rotated_tile.path_down && !rotated_tile.path_left,
+            // bottom edge corner
+            Location(_, 6) => !rotated_tile.path_down,
+            // top edge corner
+            Location(_, 0) => !rotated_tile.path_up,
+            // left edge corner
+            Location(0, _) => !rotated_tile.path_left,
+            // right edge corner
+            Location(6, _) => !rotated_tile.path_right,
+            _ => true,
+        }
+    }
+
     /// Create a new board including the fixed tiles, with free tiles placed using the random number generator
     pub fn new<R: Rng>(rng: &mut R) -> Board {
         let fixed_tiles = Board::FIXED_TILES
@@ -619,7 +644,14 @@ impl Board {
         free_locations.shuffle(rng);
 
         let extra_tile = free_tiles.pop().unwrap().0;
-        let placed_tiles = free_locations.into_iter().zip(free_tiles);
+        let mut placed_tiles: Vec<_> = free_locations.into_iter().zip(free_tiles).collect();
+
+        // Rotate any tiles that would have an invalid placement until placement okay
+        for mut placed_tile in &mut placed_tiles {
+            while !Board::tile_placement_ok(&placed_tile.0, &placed_tile.1) {
+                (placed_tile.1).1 = rng.gen();
+            }
+        }
 
         Board {
             placed: fixed_tiles.into_iter().chain(placed_tiles).collect(),
@@ -635,7 +667,6 @@ impl Board {
         reverse: bool,
         idx_is_x: bool,
     ) -> Result<(), LocationError> {
-        // 1, _, true, true
         let push_in_at = match (reverse, idx_is_x) {
             (false, false) => Location(0, idx),
             (false, true) => Location(idx, 0),
@@ -649,6 +680,15 @@ impl Board {
             (true, false) => Location(0, idx),
             (true, true) => Location(idx, 0),
         };
+
+        let to_push_in = PlacedTile(self.spare, tile_rotation);
+
+        // Ensure rotating the spare tile in won't break the board
+        if !Board::tile_placement_ok(&push_in_at, &to_push_in) {
+            return Err(LocationError::new(
+                "Tile cannot be inserted here with this rotation",
+            ));
+        }
 
         let pushed_out = self
             .placed
@@ -673,8 +713,7 @@ impl Board {
             moving_tile = self.placed.insert(move_to, moving_tile.unwrap());
         }
 
-        self.placed
-            .insert(push_in_at, PlacedTile(self.spare, tile_rotation));
+        self.placed.insert(push_in_at, to_push_in);
         self.spare = pushed_out;
 
         Ok(())
