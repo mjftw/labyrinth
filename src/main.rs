@@ -1,3 +1,6 @@
+mod errors;
+use errors::LocationError;
+
 use itertools::Itertools;
 use rand::{
     distributions::{Distribution, Standard},
@@ -9,7 +12,6 @@ use std::convert::From;
 use std::fmt;
 use std::iter::Iterator;
 
-//TODO: Add all items
 #[derive(Copy, Clone)]
 enum Item {
     Chest,
@@ -223,7 +225,6 @@ impl Distribution<Rotation> for Standard {
         }
     }
 }
-
 #[derive(Copy, Clone)]
 struct PlacedTile(Tile, Rotation);
 
@@ -234,11 +235,32 @@ impl fmt::Debug for PlacedTile {
     }
 }
 
+impl PlacedTile {
+    /// Rotate the placed tile clockwise by 90 degrees
+    pub fn rotate_cw(&mut self) {
+        self.1 = match self.1 {
+            Rotation::Zero => Rotation::Clockwise90,
+            Rotation::Clockwise90 => Rotation::Clockwise180,
+            Rotation::Clockwise180 => Rotation::Clockwise270,
+            Rotation::Clockwise270 => Rotation::Zero,
+        }
+    }
+}
+
 #[derive(Hash, Debug, PartialEq, Eq, Copy, Clone)]
 struct Location(usize, usize);
 
+impl fmt::Display for Location {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({}, {})", self.0, self.1)
+    }
+}
+
 /// A board containing all tiles placed on the board and the spare extra tile
-struct Board(HashMap<Location, PlacedTile>, Tile);
+struct Board {
+    placed: HashMap<Location, PlacedTile>,
+    spare: Tile,
+}
 
 struct BoardIter<'a> {
     board: &'a Board,
@@ -250,7 +272,7 @@ impl<'a> Iterator for BoardIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         self.locations
             .next()
-            .map(|location| self.board.0.get(&location).unwrap())
+            .map(|location| self.board.placed.get(&location).unwrap())
     }
 }
 
@@ -549,18 +571,131 @@ impl Board {
         let extra_tile = free_tiles.pop().unwrap().0;
         let placed_tiles = free_locations.into_iter().zip(free_tiles);
 
-        Board(
-            fixed_tiles.into_iter().chain(placed_tiles).collect(),
-            extra_tile,
-        )
+        Board {
+            placed: fixed_tiles.into_iter().chain(placed_tiles).collect(),
+            spare: extra_tile,
+        }
+    }
+
+    /// Generic helper function for rotating a row or column
+    fn rotate_common(
+        &mut self,
+        idx: usize,
+        tile_rotation: Rotation,
+        reverse: bool,
+        idx_is_x: bool,
+    ) -> Result<(), LocationError> {
+        let push_in_at = match (reverse, idx_is_x) {
+            (false, false) => Location(0, idx),
+            (false, true) => Location(idx, 0),
+            (true, false) => Location(6, idx),
+            (true, true) => Location(idx, 6),
+        };
+
+        let push_out_at = match (reverse, idx_is_x) {
+            (false, false) => Location(6, idx),
+            (false, true) => Location(idx, 6),
+            (true, false) => Location(0, idx),
+            (true, true) => Location(idx, 0),
+        };
+
+        let pushed_out = self
+            .placed
+            .remove(&push_out_at)
+            .ok_or(LocationError::from(push_out_at))?
+            .0;
+
+        let mut moving_tile = self.placed.remove(&push_in_at);
+
+        let iter: Box<dyn Iterator<Item = usize>> = if reverse {
+            Box::new((1..7).rev())
+        } else {
+            Box::new(1..7)
+        };
+
+        for i in iter {
+            let move_to = if idx_is_x {
+                Location(idx, i)
+            } else {
+                Location(i, idx)
+            };
+            moving_tile = self.placed.insert(move_to, moving_tile.unwrap());
+        }
+
+        self.placed
+            .insert(push_in_at, PlacedTile(self.spare, tile_rotation));
+        self.spare = pushed_out;
+
+        Ok(())
+    }
+
+    /// Rotate row y left, replacing the rightmost tile with the spare tile
+    fn rotate_left(&mut self, y: usize, tile_rotation: Rotation) -> Result<(), LocationError> {
+        self.rotate_common(y, tile_rotation, true, false)
+    }
+
+    /// Rotate row y right, replacing the leftmost tile with the spare tile
+    fn rotate_right(&mut self, y: usize, tile_rotation: Rotation) -> Result<(), LocationError> {
+        self.rotate_common(y, tile_rotation, false, false)
+    }
+
+    /// Rotate column x up, replacing the bottommost tile with the spare tile
+    fn rotate_up(&mut self, x: usize, tile_rotation: Rotation) -> Result<(), LocationError> {
+        self.rotate_common(x, tile_rotation, true, true)
+    }
+
+    /// Rotate column x down, replacing the topmost tile with the spare tile
+    fn rotate_down(&mut self, x: usize, tile_rotation: Rotation) -> Result<(), LocationError> {
+        self.rotate_common(x, tile_rotation, false, true)
+    }
+
+    /// Try to insert the extra tile at a given location, sliding all the tiles in the row/column by 1.
+    /// Inserting a tile pushes the tile opposite off the board, which becomes the new extra tile.
+    /// Returns Ok(()) if insertion was possible, and Err(()) if not.
+    /// Valid insertion locations are:
+    /// (1,0), (3,0), (5,0), (6,1), (6,3), (6,5), (1,6), (3,6), (5,6), (0,1), (0,3), (0,5),
+    pub fn insert_spare(
+        &mut self,
+        insert_at: Location,
+        rotation: Rotation,
+    ) -> Result<(), LocationError> {
+        match insert_at {
+            Location(1, 0) => self.rotate_down(1, rotation),
+            Location(3, 0) => self.rotate_down(3, rotation),
+            Location(5, 0) => self.rotate_down(5, rotation),
+            Location(6, 1) => self.rotate_left(1, rotation),
+            Location(6, 3) => self.rotate_left(3, rotation),
+            Location(6, 5) => self.rotate_left(5, rotation),
+            Location(1, 6) => self.rotate_up(1, rotation),
+            Location(3, 6) => self.rotate_up(3, rotation),
+            Location(5, 6) => self.rotate_up(5, rotation),
+            Location(0, 1) => self.rotate_right(1, rotation),
+            Location(0, 3) => self.rotate_right(3, rotation),
+            Location(0, 5) => self.rotate_right(5, rotation),
+
+            _ => Err(LocationError::new(&format!(
+                "Cannot insert a tile at location {}",
+                insert_at,
+            ))),
+        }
     }
 }
+
+//TODO: Add tests
 
 fn main() {
     println!("Hello, world!");
 
     let mut rng = rand::thread_rng();
-    let board = Board::new(&mut rng);
+    let mut board = Board::new(&mut rng);
 
-    println!("{:?}", board);
+    println!("Board:\n{:?}", board);
+    println!("Spare tile:\n{:?}", board.spare);
+
+    board
+        .insert_spare(Location(0, 1), Rotation::Clockwise90)
+        .expect("Invalid insert location");
+
+    println!("Board:\n{:?}", board);
+    println!("Spare tile:\n{:?}", board.spare);
 }
