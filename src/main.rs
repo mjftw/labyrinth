@@ -635,6 +635,7 @@ impl Board {
         reverse: bool,
         idx_is_x: bool,
     ) -> Result<(), LocationError> {
+        // 1, _, true, true
         let push_in_at = match (reverse, idx_is_x) {
             (false, false) => Location(0, idx),
             (false, true) => Location(idx, 0),
@@ -658,7 +659,7 @@ impl Board {
         let mut moving_tile = self.placed.remove(&push_in_at);
 
         let iter: Box<dyn Iterator<Item = usize>> = if reverse {
-            Box::new((1..7).rev())
+            Box::new((0..6).rev())
         } else {
             Box::new(1..7)
         };
@@ -743,7 +744,7 @@ fn main() {
     println!("Spare tile:\n{:?}", board.spare);
 
     board
-        .insert_spare(Location(0, 1), Rotation::Clockwise90)
+        .insert_spare(Location(3, 6), Rotation::Clockwise90)
         .expect("Invalid insert location");
 
     println!("Board:\n{:?}", board);
