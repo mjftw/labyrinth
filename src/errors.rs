@@ -36,3 +36,27 @@ impl Error for LocationError {
     &self.details
   }
 }
+
+#[derive(Debug)]
+pub struct MoveError {
+  details: String,
+}
+
+impl MoveError {
+  pub fn new(message: &str) -> MoveError {
+    MoveError {
+      details: message.to_string(),
+    }
+  }
+}
+impl fmt::Display for MoveError {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "{}", self.details)
+  }
+}
+
+impl Error for MoveError {
+  fn description(&self) -> &str {
+    &self.details
+  }
+}

@@ -1,5 +1,5 @@
 mod errors;
-use errors::LocationError;
+use errors::{LocationError, MoveError};
 
 use itertools::Itertools;
 use rand::{
@@ -7,8 +7,9 @@ use rand::{
     seq::SliceRandom,
     Rng,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::convert::From;
+use std::error::Error;
 use std::fmt;
 use std::iter::{self, Iterator};
 
@@ -73,7 +74,7 @@ impl fmt::Display for Item {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Hash, Copy, Clone, Eq, PartialEq)]
 enum Player {
     Player1,
     Player2,
@@ -273,7 +274,7 @@ impl Distribution<Rotation> for Standard {
 struct PlacedTile {
     tile: Tile,
     rotation: Rotation,
-    players: Vec<Player>,
+    players: HashSet<Player>,
 }
 
 impl From<&Tile> for PlacedTile {
@@ -281,7 +282,7 @@ impl From<&Tile> for PlacedTile {
         PlacedTile {
             tile: *tile,
             rotation: Rotation::Zero,
-            players: Vec::new(),
+            players: HashSet::new(),
         }
     }
 }
@@ -372,6 +373,7 @@ impl fmt::Display for Location {
 struct Board {
     placed: HashMap<Location, PlacedTile>,
     spare: Tile,
+    graph: BoardGraph,
 }
 
 struct BoardIter<'a> {
@@ -735,6 +737,47 @@ impl Board {
         Ok(neighbors)
     }
 
+    pub fn players(&self) -> HashMap<Location, Player> {
+        self.placed
+            .iter()
+            .flat_map(|(location, tile)| tile.players.iter().map(|player| (*location, *player)))
+            .collect()
+    }
+
+    pub fn move_player(
+        &mut self,
+        player: &Player,
+        move_to: &Location,
+    ) -> Result<(), Box<dyn Error>> {
+        let players = self.players();
+
+        let current_location = *players
+            .iter()
+            .filter_map(|(l, p)| if p == player { Some(*l) } else { None })
+            .collect::<Vec<_>>()
+            .first()
+            .ok_or(MoveError::new("Player not found on board"))?;
+
+        if self.graph.is_connected(&current_location, move_to)? {
+            // Take player off previous tile
+            self.placed
+                .get_mut(&current_location)
+                .ok_or(LocationError::from(move_to))?
+                .players
+                .remove(player);
+
+            // Add player to new tile
+            self.placed
+                .get_mut(move_to)
+                .ok_or(LocationError::from(move_to))?
+                .players
+                .insert(*player);
+            Ok(())
+        } else {
+            Err(Box::new(MoveError::new("No path to destination")))
+        }
+    }
+
     /// Check whether placing a tile with a certain rotation at a certain location is allowed
     /// No tile can be placed so that one of the openings leads off the board
     fn tile_placement_ok(location: &Location, placed_tile: &PlacedTile) -> bool {
@@ -774,26 +817,26 @@ impl Board {
                             TileMarking::PlayerStart(Player::Player1)
                                 if players.contains(&Player::Player1) =>
                             {
-                                vec![Player::Player1]
+                                HashSet::from([Player::Player1])
                             }
                             TileMarking::PlayerStart(Player::Player2)
                                 if players.contains(&Player::Player2) =>
                             {
-                                vec![Player::Player2]
+                                HashSet::from([Player::Player2])
                             }
                             TileMarking::PlayerStart(Player::Player3)
                                 if players.contains(&Player::Player3) =>
                             {
-                                vec![Player::Player3]
+                                HashSet::from([Player::Player3])
                             }
                             TileMarking::PlayerStart(Player::Player4)
                                 if players.contains(&Player::Player4) =>
                             {
-                                vec![Player::Player4]
+                                HashSet::from([Player::Player4])
                             }
-                            _ => Vec::new(),
+                            _ => HashSet::new(),
                         })
-                        .unwrap_or(Vec::new()),
+                        .unwrap_or(HashSet::new()),
                 },
             )
         });
@@ -804,7 +847,7 @@ impl Board {
             .map(|tile| PlacedTile {
                 tile,
                 rotation: rng.gen(),
-                players: Vec::new(),
+                players: HashSet::new(),
             })
             .collect();
 
@@ -833,10 +876,14 @@ impl Board {
             }
         }
 
-        Board {
+        let mut board = Board {
             placed: fixed_tiles.into_iter().chain(placed_tiles).collect(),
             spare: extra_tile,
-        }
+            graph: BoardGraph::empty(),
+        };
+        board.graph = BoardGraph::from(&board);
+
+        board
     }
 
     /// Generic helper function for rotating a row or column
@@ -864,7 +911,7 @@ impl Board {
         let mut to_push_in = PlacedTile {
             tile: self.spare,
             rotation: tile_rotation,
-            players: Vec::new(),
+            players: HashSet::new(),
         };
 
         // Ensure rotating the spare tile in won't break the board
@@ -961,6 +1008,14 @@ struct BoardGraph {
     components: HashMap<Location, i32>,
 }
 
+impl BoardGraph {
+    pub fn empty() -> BoardGraph {
+        BoardGraph {
+            components: HashMap::new(),
+        }
+    }
+}
+
 impl From<&Board> for BoardGraph {
     fn from(board: &Board) -> BoardGraph {
         /// Depth first search based component labeling utility function
@@ -1040,7 +1095,7 @@ fn main() {
     println!("Spare tile:\n{:?}", board.spare);
 
     board
-        .insert_spare(Location(3, 0), Rotation::Clockwise90)
+        .move_player(&Player::Player1, &Location(2, 0))
         .unwrap();
 
     println!("Board:\n{:?}", board);
