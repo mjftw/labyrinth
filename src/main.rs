@@ -616,6 +616,83 @@ impl Board {
         }))
     }
 
+    pub fn neighbors(&self, at: &Location) -> Result<Vec<Location>, LocationError> {
+        // Check location exists on board
+        let here = Tile::from(*self.placed.get(at).ok_or(at)?);
+
+        // No neighbors off the edge of the board
+        let up = if at.1 > 0 {
+            let up_at = Location(at.0, at.1 - 1);
+            self.placed
+                .get(&up_at)
+                .map(|tile| {
+                    if here.path_up && Tile::from(*tile).path_down {
+                        Some(up_at)
+                    } else {
+                        None
+                    }
+                })
+                .flatten()
+        } else {
+            None
+        };
+
+        // No neighbors off the edge of the board
+        let left = if at.0 > 0 {
+            let left_at = Location(at.0 - 1, at.1);
+            self.placed
+                .get(&left_at)
+                .map(|tile| {
+                    if here.path_left && Tile::from(*tile).path_right {
+                        Some(left_at)
+                    } else {
+                        None
+                    }
+                })
+                .flatten()
+        } else {
+            None
+        };
+
+        // No neighbors off the edge of the board
+        let down = if at.1 + 1 < 6 {
+            let down_at = Location(at.0, at.1 + 1);
+            self.placed
+                .get(&down_at)
+                .map(|tile| {
+                    if here.path_down && Tile::from(*tile).path_up {
+                        Some(down_at)
+                    } else {
+                        None
+                    }
+                })
+                .flatten()
+        } else {
+            None
+        };
+
+        // No neighbors off the edge of the board
+        let right = if at.0 + 1 < 6 {
+            let right_at = Location(at.0 + 1, at.1);
+            self.placed
+                .get(&right_at)
+                .map(|tile| {
+                    if here.path_right && Tile::from(*tile).path_left {
+                        Some(right_at)
+                    } else {
+                        None
+                    }
+                })
+                .flatten()
+        } else {
+            None
+        };
+
+        let neighbors: Vec<Location> = [up, down, left, right].iter().filter_map(|l| *l).collect();
+
+        Ok(neighbors)
+    }
+
     /// Check whether placing a tile with a certain rotation at a certain location is allowed
     /// No tile can be placed so that one of the openings leads off the board
     fn tile_placement_ok(location: &Location, placed_tile: &PlacedTile) -> bool {
@@ -713,7 +790,7 @@ impl Board {
         let pushed_out = self
             .placed
             .remove(&push_out_at)
-            .ok_or(LocationError::from(push_out_at))?
+            .ok_or(LocationError::from(&push_out_at))?
             .0;
 
         let mut moving_tile = self.placed.remove(&push_in_at);
@@ -791,21 +868,87 @@ impl Board {
     }
 }
 
+struct BoardGraph {
+    components: HashMap<Location, i32>,
+}
+
+impl From<&Board> for BoardGraph {
+    fn from(board: &Board) -> BoardGraph {
+        /// Depth first search based component labeling utility function
+        fn dfs_util(
+            board: &Board,
+            at: &Location,
+            visited: &mut HashMap<Location, bool>,
+            graph: &mut BoardGraph,
+            component_id: i32,
+        ) {
+            if !visited.get(at).unwrap_or(&false) {
+                visited.insert(*at, true);
+                graph.components.insert(*at, component_id);
+                for neighbor_at in board.neighbors(at).unwrap() {
+                    dfs_util(board, &neighbor_at, visited, graph, component_id);
+                }
+            }
+        }
+
+        let mut graph = BoardGraph {
+            components: HashMap::new(),
+        };
+
+        let mut current_component_id = -1;
+        let locations: Vec<Location> = board.placed.iter().map(|(location, _)| *location).collect();
+
+        // Initially all locations are unvisited
+        let mut visited: HashMap<Location, bool> = locations
+            .iter()
+            .map(|location| (*location, false))
+            .collect();
+
+        for location in locations {
+            if !visited.get(&location).unwrap() {
+                current_component_id += 1;
+                dfs_util(
+                    board,
+                    &location,
+                    &mut visited,
+                    &mut graph,
+                    current_component_id,
+                )
+            }
+        }
+
+        graph
+    }
+}
+
+impl BoardGraph {
+    pub fn is_connected(
+        &self,
+        location1: &Location,
+        location2: &Location,
+    ) -> Result<bool, LocationError> {
+        Ok(self
+            .components
+            .get(location1)
+            .ok_or(LocationError::from(location1))?
+            == self
+                .components
+                .get(location2)
+                .ok_or(LocationError::from(location2))?)
+    }
+}
+
 //TODO: Add tests
 
 fn main() {
     println!("Hello, world!");
 
     let mut rng = rand::thread_rng();
-    let mut board = Board::new(&mut rng);
+    let board = Board::new(&mut rng);
 
     println!("Board:\n{:?}", board);
     println!("Spare tile:\n{:?}", board.spare);
 
-    board
-        .insert_spare(Location(3, 6), Rotation::Clockwise90)
-        .expect("Invalid insert location");
-
-    println!("Board:\n{:?}", board);
-    println!("Spare tile:\n{:?}", board.spare);
+    let graph = BoardGraph::from(&board);
+    println!("{:?}", graph.is_connected(&Location(0, 0), &Location(2, 2)));
 }

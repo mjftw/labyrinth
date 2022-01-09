@@ -9,8 +9,8 @@ pub struct LocationError {
   details: String,
 }
 
-impl From<Location> for LocationError {
-  fn from(location: Location) -> Self {
+impl From<&Location> for LocationError {
+  fn from(location: &Location) -> Self {
     LocationError {
       details: format!("Invalid location {}", location),
     }
