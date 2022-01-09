@@ -73,12 +73,25 @@ impl fmt::Display for Item {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 enum Player {
     Player1,
     Player2,
     Player3,
     Player4,
+}
+
+impl fmt::Display for Player {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let icon = match self {
+            Player::Player1 => "♠",
+            Player::Player2 => "♥",
+            Player::Player3 => "♦",
+            Player::Player4 => "♣",
+        };
+
+        write!(f, "{}", icon)
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -91,10 +104,10 @@ impl fmt::Display for TileMarking {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let icon = match self {
             TileMarking::Item(item) => format!("{}", item),
-            TileMarking::PlayerStart(Player::Player1) => "♠".to_string(), //red
-            TileMarking::PlayerStart(Player::Player2) => "♥".to_string(), //blue
-            TileMarking::PlayerStart(Player::Player3) => "♦".to_string(), //yellow
-            TileMarking::PlayerStart(Player::Player4) => "♣".to_string(), //green
+            TileMarking::PlayerStart(Player::Player1) => "♤".to_string(), //red
+            TileMarking::PlayerStart(Player::Player2) => "♡".to_string(), //blue
+            TileMarking::PlayerStart(Player::Player3) => "♢".to_string(), //yellow
+            TileMarking::PlayerStart(Player::Player4) => "♧".to_string(), //green
         };
 
         write!(f, "{}", icon)
@@ -151,47 +164,8 @@ impl From<&PlacedTile> for Tile {
 
 impl fmt::Debug for Tile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let w = "▒";
-        let p = "░";
-        write!(
-            f,
-            "{}{}{}\n\
-             {}{}{}\n\
-             {}{}{}\n\
-             {}{}{}\n\
-             {}{}{}\n\
-             {}{}{}",
-            w,
-            if self.path_up {
-                p.repeat(4)
-            } else {
-                w.repeat(4)
-            },
-            w,
-            if self.path_left { p } else { w },
-            if self.marking.is_some() {
-                format!("{}{}{}", p, self.marking.unwrap(), p.repeat(2))
-            } else {
-                p.repeat(4)
-            },
-            if self.path_right { p } else { w },
-            if self.path_left { p } else { w },
-            p.repeat(4),
-            if self.path_right { p } else { w },
-            if self.path_left { p } else { w },
-            p.repeat(4),
-            if self.path_right { p } else { w },
-            if self.path_left { p } else { w },
-            p.repeat(4),
-            if self.path_right { p } else { w },
-            w,
-            if self.path_down {
-                p.repeat(4)
-            } else {
-                w.repeat(4)
-            },
-            w,
-        )
+        let placed_tile: PlacedTile = PlacedTile::from(self);
+        PlacedTile::fmt(&placed_tile, f)
     }
 }
 
@@ -299,12 +273,89 @@ impl Distribution<Rotation> for Standard {
 struct PlacedTile {
     tile: Tile,
     rotation: Rotation,
+    players: Vec<Player>,
+}
+
+impl From<&Tile> for PlacedTile {
+    fn from(tile: &Tile) -> PlacedTile {
+        PlacedTile {
+            tile: *tile,
+            rotation: Rotation::Zero,
+            players: Vec::new(),
+        }
+    }
 }
 
 impl fmt::Debug for PlacedTile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let tile: Tile = Tile::from(self);
-        Tile::fmt(&tile, f)
+        let tile = Tile::from(self);
+
+        let w = "▒";
+        let p = "░";
+
+        let player1 = if self.players.contains(&Player::Player1) {
+            format!("{}", Player::Player1)
+        } else {
+            p.to_string()
+        };
+
+        let player2 = if self.players.contains(&Player::Player2) {
+            format!("{}", Player::Player2)
+        } else {
+            p.to_string()
+        };
+
+        let player3 = if self.players.contains(&Player::Player3) {
+            format!("{}", Player::Player3)
+        } else {
+            p.to_string()
+        };
+
+        let player4 = if self.players.contains(&Player::Player4) {
+            format!("{}", Player::Player4)
+        } else {
+            p.to_string()
+        };
+
+        write!(
+            f,
+            "{}{}{}\n\
+             {}{}{}\n\
+             {}{}{}\n\
+             {}{}{}\n\
+             {}{}{}\n\
+             {}{}{}",
+            w,
+            if tile.path_up {
+                p.repeat(4)
+            } else {
+                w.repeat(4)
+            },
+            w,
+            if tile.path_left { p } else { w },
+            if tile.marking.is_some() {
+                format!("{}{}{}", p, tile.marking.unwrap(), p.repeat(2))
+            } else {
+                p.repeat(4)
+            },
+            if tile.path_right { p } else { w },
+            if tile.path_left { p } else { w },
+            format!("{}{}{}{}", p, player1, player2, p),
+            if tile.path_right { p } else { w },
+            if tile.path_left { p } else { w },
+            format!("{}{}{}{}", p, player3, player4, p),
+            if tile.path_right { p } else { w },
+            if tile.path_left { p } else { w },
+            p.repeat(4),
+            if tile.path_right { p } else { w },
+            w,
+            if tile.path_down {
+                p.repeat(4)
+            } else {
+                w.repeat(4)
+            },
+            w,
+        )
     }
 }
 
@@ -717,6 +768,7 @@ impl Board {
                 PlacedTile {
                     tile,
                     rotation: Rotation::Zero,
+                    players: Vec::new(),
                 },
             )
         });
@@ -727,6 +779,7 @@ impl Board {
             .map(|tile| PlacedTile {
                 tile,
                 rotation: rng.gen(),
+                players: Vec::new(),
             })
             .collect();
 
@@ -783,9 +836,10 @@ impl Board {
             (true, true) => Location(idx, 0),
         };
 
-        let to_push_in = PlacedTile {
+        let mut to_push_in = PlacedTile {
             tile: self.spare,
             rotation: tile_rotation,
+            players: Vec::new(),
         };
 
         // Ensure rotating the spare tile in won't break the board
@@ -798,8 +852,10 @@ impl Board {
         let pushed_out = self
             .placed
             .remove(&push_out_at)
-            .ok_or(LocationError::from(&push_out_at))?
-            .tile;
+            .ok_or(LocationError::from(&push_out_at))?;
+
+        // If a player is pushed off the board then they are moved to the newly inserted tile
+        to_push_in.players = pushed_out.players;
 
         let mut moving_tile = self.placed.remove(&push_in_at);
 
@@ -819,7 +875,7 @@ impl Board {
         }
 
         self.placed.insert(push_in_at, to_push_in);
-        self.spare = pushed_out;
+        self.spare = pushed_out.tile;
 
         Ok(())
     }
@@ -952,11 +1008,43 @@ fn main() {
     println!("Hello, world!");
 
     let mut rng = rand::thread_rng();
-    let board = Board::new(&mut rng);
+    let mut board = Board::new(&mut rng);
+
+    board
+        .placed
+        .get_mut(&Location(0, 0))
+        .unwrap()
+        .players
+        .push(Player::Player1);
+
+    board
+        .placed
+        .get_mut(&Location(2, 2))
+        .unwrap()
+        .players
+        .push(Player::Player2);
+
+    board
+        .placed
+        .get_mut(&Location(1, 3))
+        .unwrap()
+        .players
+        .push(Player::Player3);
+
+    board
+        .placed
+        .get_mut(&Location(3, 6))
+        .unwrap()
+        .players
+        .push(Player::Player4);
 
     println!("Board:\n{:?}", board);
     println!("Spare tile:\n{:?}", board.spare);
 
-    let graph = BoardGraph::from(&board);
-    println!("{:?}", graph.is_connected(&Location(0, 0), &Location(2, 2)));
+    board
+        .insert_spare(Location(3, 0), Rotation::Clockwise90)
+        .unwrap();
+
+    println!("Board:\n{:?}", board);
+    println!("Spare tile:\n{:?}", board.spare);
 }
