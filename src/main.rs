@@ -761,14 +761,39 @@ impl Board {
     }
 
     /// Create a new board including the fixed tiles, with free tiles placed using the random number generator
-    pub fn new<R: Rng>(rng: &mut R) -> Board {
+    pub fn new<R: Rng>(rng: &mut R, players: &Vec<Player>) -> Board {
         let fixed_tiles = Board::FIXED_TILES.clone().map(|(location, tile)| {
             (
                 location,
                 PlacedTile {
                     tile,
                     rotation: Rotation::Zero,
-                    players: Vec::new(),
+                    players: tile
+                        .marking
+                        .map(|marking| match marking {
+                            TileMarking::PlayerStart(Player::Player1)
+                                if players.contains(&Player::Player1) =>
+                            {
+                                vec![Player::Player1]
+                            }
+                            TileMarking::PlayerStart(Player::Player2)
+                                if players.contains(&Player::Player2) =>
+                            {
+                                vec![Player::Player2]
+                            }
+                            TileMarking::PlayerStart(Player::Player3)
+                                if players.contains(&Player::Player3) =>
+                            {
+                                vec![Player::Player3]
+                            }
+                            TileMarking::PlayerStart(Player::Player4)
+                                if players.contains(&Player::Player4) =>
+                            {
+                                vec![Player::Player4]
+                            }
+                            _ => Vec::new(),
+                        })
+                        .unwrap_or(Vec::new()),
                 },
             )
         });
@@ -1008,35 +1033,8 @@ fn main() {
     println!("Hello, world!");
 
     let mut rng = rand::thread_rng();
-    let mut board = Board::new(&mut rng);
-
-    board
-        .placed
-        .get_mut(&Location(0, 0))
-        .unwrap()
-        .players
-        .push(Player::Player1);
-
-    board
-        .placed
-        .get_mut(&Location(2, 2))
-        .unwrap()
-        .players
-        .push(Player::Player2);
-
-    board
-        .placed
-        .get_mut(&Location(1, 3))
-        .unwrap()
-        .players
-        .push(Player::Player3);
-
-    board
-        .placed
-        .get_mut(&Location(3, 6))
-        .unwrap()
-        .players
-        .push(Player::Player4);
+    let players = vec![Player::Player1, Player::Player2, Player::Player4];
+    let mut board = Board::new(&mut rng, &players);
 
     println!("Board:\n{:?}", board);
     println!("Spare tile:\n{:?}", board.spare);
