@@ -110,37 +110,37 @@ struct Tile {
     path_left: bool,
 }
 
-impl From<PlacedTile> for Tile {
-    fn from(placed_tile: PlacedTile) -> Self {
-        let (path_up, path_right, path_down, path_left) = match placed_tile.1 {
+impl From<&PlacedTile> for Tile {
+    fn from(placed_tile: &PlacedTile) -> Self {
+        let (path_up, path_right, path_down, path_left) = match placed_tile.rotation {
             Rotation::Zero => (
-                placed_tile.0.path_up,
-                placed_tile.0.path_right,
-                placed_tile.0.path_down,
-                placed_tile.0.path_left,
+                placed_tile.tile.path_up,
+                placed_tile.tile.path_right,
+                placed_tile.tile.path_down,
+                placed_tile.tile.path_left,
             ),
             Rotation::Clockwise90 => (
-                placed_tile.0.path_left,
-                placed_tile.0.path_up,
-                placed_tile.0.path_right,
-                placed_tile.0.path_down,
+                placed_tile.tile.path_left,
+                placed_tile.tile.path_up,
+                placed_tile.tile.path_right,
+                placed_tile.tile.path_down,
             ),
             Rotation::Clockwise180 => (
-                placed_tile.0.path_down,
-                placed_tile.0.path_left,
-                placed_tile.0.path_up,
-                placed_tile.0.path_right,
+                placed_tile.tile.path_down,
+                placed_tile.tile.path_left,
+                placed_tile.tile.path_up,
+                placed_tile.tile.path_right,
             ),
             Rotation::Clockwise270 => (
-                placed_tile.0.path_right,
-                placed_tile.0.path_down,
-                placed_tile.0.path_left,
-                placed_tile.0.path_up,
+                placed_tile.tile.path_right,
+                placed_tile.tile.path_down,
+                placed_tile.tile.path_left,
+                placed_tile.tile.path_up,
             ),
         };
 
         Tile {
-            marking: placed_tile.0.marking,
+            marking: placed_tile.tile.marking,
             path_up,
             path_right,
             path_down,
@@ -295,12 +295,15 @@ impl Distribution<Rotation> for Standard {
         }
     }
 }
-#[derive(Copy, Clone)]
-struct PlacedTile(Tile, Rotation);
+
+struct PlacedTile {
+    tile: Tile,
+    rotation: Rotation,
+}
 
 impl fmt::Debug for PlacedTile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let tile: Tile = Tile::from(*self);
+        let tile: Tile = Tile::from(self);
         Tile::fmt(&tile, f)
     }
 }
@@ -308,7 +311,7 @@ impl fmt::Debug for PlacedTile {
 impl PlacedTile {
     /// Rotate the placed tile clockwise by 90 degrees
     pub fn rotate_cw(&mut self) {
-        self.1 = match self.1 {
+        self.rotation = match self.rotation {
             Rotation::Zero => Rotation::Clockwise90,
             Rotation::Clockwise90 => Rotation::Clockwise180,
             Rotation::Clockwise180 => Rotation::Clockwise270,
@@ -618,7 +621,7 @@ impl Board {
 
     pub fn neighbors(&self, at: &Location) -> Result<Vec<Location>, LocationError> {
         // Check location exists on board
-        let here = Tile::from(*self.placed.get(at).ok_or(at)?);
+        let here = Tile::from(self.placed.get(at).ok_or(at)?);
 
         // No neighbors off the edge of the board
         let up = if at.1 > 0 {
@@ -626,7 +629,7 @@ impl Board {
             self.placed
                 .get(&up_at)
                 .map(|tile| {
-                    if here.path_up && Tile::from(*tile).path_down {
+                    if here.path_up && Tile::from(tile).path_down {
                         Some(up_at)
                     } else {
                         None
@@ -643,7 +646,7 @@ impl Board {
             self.placed
                 .get(&left_at)
                 .map(|tile| {
-                    if here.path_left && Tile::from(*tile).path_right {
+                    if here.path_left && Tile::from(tile).path_right {
                         Some(left_at)
                     } else {
                         None
@@ -660,7 +663,7 @@ impl Board {
             self.placed
                 .get(&down_at)
                 .map(|tile| {
-                    if here.path_down && Tile::from(*tile).path_up {
+                    if here.path_down && Tile::from(tile).path_up {
                         Some(down_at)
                     } else {
                         None
@@ -677,7 +680,7 @@ impl Board {
             self.placed
                 .get(&right_at)
                 .map(|tile| {
-                    if here.path_right && Tile::from(*tile).path_left {
+                    if here.path_right && Tile::from(tile).path_left {
                         Some(right_at)
                     } else {
                         None
@@ -696,7 +699,7 @@ impl Board {
     /// Check whether placing a tile with a certain rotation at a certain location is allowed
     /// No tile can be placed so that one of the openings leads off the board
     fn tile_placement_ok(location: &Location, placed_tile: &PlacedTile) -> bool {
-        let rotated_tile = Tile::from(*placed_tile);
+        let rotated_tile = Tile::from(placed_tile);
         match location {
             // top left corner
             Location(0, 0) => !rotated_tile.path_up && !rotated_tile.path_left,
@@ -720,18 +723,32 @@ impl Board {
 
     /// Create a new board including the fixed tiles, with free tiles placed using the random number generator
     pub fn new<R: Rng>(rng: &mut R) -> Board {
-        let fixed_tiles = Board::FIXED_TILES
-            .clone()
-            .map(|(location, tile)| (location, PlacedTile(tile, Rotation::Zero)));
+        let fixed_tiles = Board::FIXED_TILES.clone().map(|(location, tile)| {
+            (
+                location,
+                PlacedTile {
+                    tile,
+                    rotation: Rotation::Zero,
+                },
+            )
+        });
 
         let mut free_tiles: Vec<PlacedTile> = Board::FREE_TILES
             .clone()
             .into_iter()
-            .map(|tile| PlacedTile(tile, rng.gen()))
+            .map(|tile| PlacedTile {
+                tile,
+                rotation: rng.gen(),
+            })
             .collect();
 
         let mut free_locations: Vec<Location> = Board::locations()
-            .filter(|location| !fixed_tiles.map(|(location, _)| location).contains(location))
+            .filter(|location| {
+                !fixed_tiles
+                    .iter()
+                    .map(|(location, _)| location)
+                    .contains(location)
+            })
             .collect();
 
         // There should always be 1 more free tile than free location
@@ -740,13 +757,13 @@ impl Board {
         free_tiles.shuffle(rng);
         free_locations.shuffle(rng);
 
-        let extra_tile = free_tiles.pop().unwrap().0;
+        let extra_tile = free_tiles.pop().unwrap().tile;
         let mut placed_tiles: Vec<_> = free_locations.into_iter().zip(free_tiles).collect();
 
         // Rotate any tiles that would have an invalid placement until placement okay
         for mut placed_tile in &mut placed_tiles {
             while !Board::tile_placement_ok(&placed_tile.0, &placed_tile.1) {
-                (placed_tile.1).1 = rng.gen();
+                (placed_tile.1).rotation = rng.gen();
             }
         }
 
@@ -778,7 +795,10 @@ impl Board {
             (true, true) => Location(idx, 0),
         };
 
-        let to_push_in = PlacedTile(self.spare, tile_rotation);
+        let to_push_in = PlacedTile {
+            tile: self.spare,
+            rotation: tile_rotation,
+        };
 
         // Ensure rotating the spare tile in won't break the board
         if !Board::tile_placement_ok(&push_in_at, &to_push_in) {
@@ -791,7 +811,7 @@ impl Board {
             .placed
             .remove(&push_out_at)
             .ok_or(LocationError::from(&push_out_at))?
-            .0;
+            .tile;
 
         let mut moving_tile = self.placed.remove(&push_in_at);
 
