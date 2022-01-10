@@ -1,3 +1,5 @@
+extern crate unicode_width;
+use crate::emoji::Emoji;
 use crate::errors::{LocationError, MoveError};
 
 use itertools::Itertools;
@@ -40,36 +42,40 @@ pub enum Item {
   Lizard,
 }
 
+impl Emoji for Item {
+  fn emoji(&self) -> &str {
+    match self {
+      Item::Chest => "📦",
+      Item::Gnome => "👦",
+      Item::Dragon => "🐉",
+      Item::Unicorn => "🦄",
+      Item::Ghost => "👻",
+      Item::Candle => "🕯️",
+      Item::Cat => "🐱",
+      Item::Keys => "🗝",
+      Item::Book => "📕",
+      Item::Spider => "🕷",
+      Item::Crown => "👑",
+      Item::Sword => "🗡️",
+      Item::Goblet => "🏆",
+      Item::Mouse => "🐭",
+      Item::Ring => "💍",
+      Item::Potion => "⚗️",
+      Item::Beetle => "🐞",
+      Item::Owl => "🦉",
+      Item::Gem => "💎",
+      Item::Genie => "🧞‍♀️",
+      Item::Bat => "🦇",
+      Item::Sack => "💰",
+      Item::Helmet => "🧢",
+      Item::Lizard => "🦎",
+    }
+  }
+}
+
 impl fmt::Display for Item {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    let icon = match self {
-      Item::Chest => "0",
-      Item::Gnome => "1",
-      Item::Dragon => "2",
-      Item::Unicorn => "3",
-      Item::Ghost => "4",
-      Item::Candle => "5",
-      Item::Cat => "6",
-      Item::Keys => "7",
-      Item::Book => "8",
-      Item::Spider => "9",
-      Item::Crown => "a",
-      Item::Sword => "b",
-      Item::Goblet => "c",
-      Item::Mouse => "d",
-      Item::Ring => "e",
-      Item::Potion => "f",
-      Item::Beetle => "g",
-      Item::Owl => "h",
-      Item::Gem => "i",
-      Item::Genie => "j",
-      Item::Bat => "k",
-      Item::Sack => "l",
-      Item::Helmet => "m",
-      Item::Lizard => "n",
-    };
-
-    write!(f, "{}", icon)
+    write!(f, "{}", self.emoji())
   }
 }
 
@@ -81,16 +87,20 @@ pub enum Player {
   Player4,
 }
 
-impl fmt::Display for Player {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    let icon = match self {
+impl Emoji for Player {
+  fn emoji(&self) -> &str {
+    match self {
       Player::Player1 => "♠",
       Player::Player2 => "♥",
       Player::Player3 => "♦",
       Player::Player4 => "♣",
-    };
+    }
+  }
+}
 
-    write!(f, "{}", icon)
+impl fmt::Display for Player {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}", self.emoji())
   }
 }
 
@@ -100,17 +110,21 @@ pub enum TileMarking {
   PlayerStart(Player),
 }
 
+impl Emoji for TileMarking {
+  fn emoji(&self) -> &str {
+    match self {
+      TileMarking::Item(item) => item.emoji(),
+      TileMarking::PlayerStart(Player::Player1) => "♤", //red
+      TileMarking::PlayerStart(Player::Player2) => "♡", //blue
+      TileMarking::PlayerStart(Player::Player3) => "♢", //yellow
+      TileMarking::PlayerStart(Player::Player4) => "♧", //green
+    }
+  }
+}
+
 impl fmt::Display for TileMarking {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    let icon = match self {
-      TileMarking::Item(item) => format!("{}", item),
-      TileMarking::PlayerStart(Player::Player1) => "♤".to_string(), //red
-      TileMarking::PlayerStart(Player::Player2) => "♡".to_string(), //blue
-      TileMarking::PlayerStart(Player::Player3) => "♢".to_string(), //yellow
-      TileMarking::PlayerStart(Player::Player4) => "♧".to_string(), //green
-    };
-
-    write!(f, "{}", icon)
+    write!(f, "{}", self.emoji())
   }
 }
 
@@ -320,10 +334,9 @@ impl fmt::Debug for PlacedTile {
     write!(
       f,
       "{}{}{}\n\
-             {}{}{}\n\
-             {}{}{}\n\
-             {}{}{}\n\
-             {}{}{}",
+      {}{}{}\n\
+      {}{}{}{}{}{}\n\
+      {}{}{}",
       w,
       if tile.path_up {
         p.repeat(4)
@@ -333,16 +346,18 @@ impl fmt::Debug for PlacedTile {
       w,
       if tile.path_left { p } else { w },
       if tile.marking.is_some() {
-        format!("{}{}{}", p, tile.marking.unwrap(), p.repeat(2))
+        let marking = &tile.marking.unwrap();
+
+        format!("{}{}", marking.emoji(), p.repeat(4 - marking.emoji_width()))
       } else {
         p.repeat(4)
       },
       if tile.path_right { p } else { w },
       if tile.path_left { p } else { w },
-      format!("{}{}{}{}", p, player1, player2, p),
-      if tile.path_right { p } else { w },
-      if tile.path_left { p } else { w },
-      format!("{}{}{}{}", p, player3, player4, p),
+      player1,
+      player2,
+      player3,
+      player4,
       if tile.path_right { p } else { w },
       w,
       if tile.path_down {

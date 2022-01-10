@@ -1,7 +1,8 @@
 mod board;
+mod emoji;
 mod errors;
 
-use board::{Board, Location, Player};
+use board::{Board, Location, Player, Rotation};
 
 fn main() {
     println!("Hello, world!");
@@ -12,9 +13,8 @@ fn main() {
 
     println!("Board:\n{:?}", board);
     println!("Spare tile:\n{:?}", board.spare);
-
     board
-        .move_player(&Player::Player1, &Location(2, 2))
+        .insert_spare(Location(0, 1), Rotation::Clockwise180)
         .unwrap();
 
     println!("Board:\n{:?}", board);
