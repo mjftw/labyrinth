@@ -323,7 +323,6 @@ impl fmt::Debug for PlacedTile {
              {}{}{}\n\
              {}{}{}\n\
              {}{}{}\n\
-             {}{}{}\n\
              {}{}{}",
       w,
       if tile.path_up {
@@ -344,9 +343,6 @@ impl fmt::Debug for PlacedTile {
       if tile.path_right { p } else { w },
       if tile.path_left { p } else { w },
       format!("{}{}{}{}", p, player3, player4, p),
-      if tile.path_right { p } else { w },
-      if tile.path_left { p } else { w },
-      p.repeat(4),
       if tile.path_right { p } else { w },
       w,
       if tile.path_down {
@@ -978,19 +974,10 @@ impl Board {
     rotation: Rotation,
   ) -> Result<(), LocationError> {
     match insert_at {
-      Location(1, 0) => self.rotate_down(1, rotation),
-      Location(3, 0) => self.rotate_down(3, rotation),
-      Location(5, 0) => self.rotate_down(5, rotation),
-      Location(6, 1) => self.rotate_left(1, rotation),
-      Location(6, 3) => self.rotate_left(3, rotation),
-      Location(6, 5) => self.rotate_left(5, rotation),
-      Location(1, 6) => self.rotate_up(1, rotation),
-      Location(3, 6) => self.rotate_up(3, rotation),
-      Location(5, 6) => self.rotate_up(5, rotation),
-      Location(0, 1) => self.rotate_right(1, rotation),
-      Location(0, 3) => self.rotate_right(3, rotation),
-      Location(0, 5) => self.rotate_right(5, rotation),
-
+      Location(x, 0) if x % 2 == 1 => self.rotate_down(x, rotation),
+      Location(6, y) if y % 2 == 1 => self.rotate_left(y, rotation),
+      Location(x, 6) if x % 2 == 1 => self.rotate_up(x, rotation),
+      Location(0, y) if y % 2 == 1 => self.rotate_right(y, rotation),
       _ => Err(LocationError::new(&format!(
         "Cannot insert a tile at location {}",
         insert_at,
