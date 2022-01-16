@@ -4,6 +4,8 @@ use std::convert::From;
 use std::error::Error;
 use std::fmt;
 
+pub type GenericResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
+
 #[derive(Debug)]
 pub struct LocationError {
   details: String,
@@ -56,6 +58,30 @@ impl fmt::Display for MoveError {
 }
 
 impl Error for MoveError {
+  fn description(&self) -> &str {
+    &self.details
+  }
+}
+
+#[derive(Debug)]
+pub struct WrongPlayer {
+  details: String,
+}
+
+impl WrongPlayer {
+  pub fn new(message: &str) -> WrongPlayer {
+    WrongPlayer {
+      details: message.to_string(),
+    }
+  }
+}
+impl fmt::Display for WrongPlayer {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "{}", self.details)
+  }
+}
+
+impl Error for WrongPlayer {
   fn description(&self) -> &str {
     &self.details
   }

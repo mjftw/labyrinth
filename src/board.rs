@@ -1,6 +1,6 @@
 extern crate unicode_width;
 use crate::emoji::Emoji;
-use crate::errors::{LocationError, MoveError};
+use crate::errors::{GenericResult, LocationError, MoveError};
 
 use itertools::Itertools;
 use rand::{
@@ -10,7 +10,6 @@ use rand::{
 };
 use std::collections::{HashMap, HashSet};
 use std::convert::From;
-use std::error::Error;
 use std::fmt;
 use std::iter::Iterator;
 
@@ -284,6 +283,7 @@ impl Distribution<Rotation> for Standard {
   }
 }
 
+#[derive(Clone)]
 pub struct PlacedTile {
   pub tile: Tile,
   pub rotation: Rotation,
@@ -760,7 +760,7 @@ impl Board {
       .collect()
   }
 
-  pub fn move_player(&mut self, player: &Player, move_to: &Location) -> Result<(), Box<dyn Error>> {
+  pub fn move_player(&mut self, player: &Player, move_to: &Location) -> GenericResult<()> {
     let players = self.players();
 
     let current_location = *players
