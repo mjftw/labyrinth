@@ -8,4 +8,6 @@ version = "0.1.0"
 [dependencies]
 itertools = "0.10.3"
 rand = "0.8.0"
+strum = "0.23"
+strum_macros = "0.23"
 unicode-width = "0.1.9"
