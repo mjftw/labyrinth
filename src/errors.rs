@@ -4,7 +4,8 @@ use std::convert::From;
 use std::error::Error;
 use std::fmt;
 
-pub type GenericResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
+pub type GenericError = Box<dyn Error + Send + Sync>;
+pub type GenericResult<T> = Result<T, GenericError>;
 
 #[derive(Debug)]
 pub struct LocationError {

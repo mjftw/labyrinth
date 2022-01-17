@@ -1,20 +1,20 @@
 use crate::board::{Item, Location, PlacedTile, Player, Tile};
-use crate::errors::{GenericResult, WrongPlayer};
-use crate::model::{Model, PlayerModel};
-use std::collections::HashMap;
+use crate::errors::{GenericError, GenericResult, WrongPlayer};
+use crate::model::{Cards, Model};
+use std::collections::{HashMap, HashSet};
 use std::convert::From;
 use std::sync::mpsc::{Receiver, Sender};
 
-pub struct PlayerSnapshot {
-  player: Player,
-  looking_for: Item,
+pub struct CardsSnapshot {
+  found: HashSet<Item>,
+  num_hidden_cards: u32,
 }
 
-impl From<&PlayerModel> for PlayerSnapshot {
-  fn from(player: &PlayerModel) -> PlayerSnapshot {
-    PlayerSnapshot {
-      player: player.player,
-      looking_for: player.current_card,
+impl From<&Cards> for CardsSnapshot {
+  fn from(cards: &Cards) -> CardsSnapshot {
+    CardsSnapshot {
+      found: cards.found_cards.clone(),
+      num_hidden_cards: cards.hidden_cards.len() as u32,
     }
   }
 }
@@ -23,19 +23,22 @@ pub struct Snapshot {
   board: HashMap<Location, PlacedTile>,
   spare_tile: Tile,
   next_player: Player,
-  players: Vec<PlayerSnapshot>,
+  looking_for: Option<Item>,
+  players: HashMap<Player, CardsSnapshot>,
 }
 
-impl From<&Model> for Snapshot {
-  fn from(model: &Model) -> Snapshot {
+impl Snapshot {
+  /// Create a new snapshot of the game state, showing only info visible to `player`
+  fn for_player(model: &Model, player: Player) -> Snapshot {
     Snapshot {
       board: model.board.placed.clone(),
       spare_tile: model.board.spare,
       next_player: model.current_player,
+      looking_for: model.current_player_cards().current_card,
       players: model
         .players
         .iter()
-        .map(|player| PlayerSnapshot::from(player))
+        .map(|(player, cards)| (*player, CardsSnapshot::from(cards)))
         .collect(),
     }
   }
@@ -47,41 +50,77 @@ pub enum Command {
   MovePlayer(Player, Location),
 }
 
+type SnapshotSender = Sender<GenericResult<Snapshot>>;
+
 #[derive(Debug)]
 pub struct CommandRequest {
   pub sent_by: Player,
   pub command: Command,
-  pub respond: Sender<GenericResult<Snapshot>>,
+  pub respond: SnapshotSender,
 }
 
 pub fn run_controller(mut model: Model, command_rx: Receiver<CommandRequest>) {
   for request in command_rx {
-    println!("Received command: {:?}", request);
-    if request.sent_by != model.current_player {
-      request
-        .respond
-        .send(Err(Box::new(WrongPlayer::new("It is not your turn"))))
-        .unwrap();
+    println!("{:?} sent command {:?}", request.sent_by, request.command);
 
+    if request.sent_by != model.current_player {
+      respond_error(&request, Box::new(WrongPlayer::new("It is not your turn")));
       continue;
     }
 
     match request.command {
-      Command::NoOp => request.respond.send(Ok(Snapshot::from(&model))).unwrap(),
-      Command::MovePlayer(player, _) if player != model.current_player => {
-        request
-          .respond
-          .send(Err(Box::new(WrongPlayer::new(
-            "You cannot move another player",
-          ))))
-          .unwrap();
+      Command::NoOp => respond_snapshot(&request, &model),
+      Command::MovePlayer(player, _) if player != model.current_player => respond_error(
+        &request,
+        Box::new(WrongPlayer::new("You cannot move another player")),
+      ),
+      Command::MovePlayer(player, location) => {
+        do_then_respond(&mut model, &request, &mut |model| {
+          move_player(player, location, model)
+        })
       }
-      Command::MovePlayer(player, location) => match model.board.move_player(&player, &location) {
-        Ok(_) => request.respond.send(Ok(Snapshot::from(&model))).unwrap(),
-        Err(error) => request.respond.send(Err(error)).unwrap(),
-      },
     }
-
-    println!("Board: {:?}", model.board)
   }
+}
+
+fn respond_snapshot(request: &CommandRequest, model: &Model) {
+  request
+    .respond
+    .send(Ok(Snapshot::for_player(&model, request.sent_by)))
+    .unwrap()
+}
+
+fn respond_error(request: &CommandRequest, error: GenericError) {
+  request.respond.send(Err(error)).unwrap();
+}
+
+/// Call the function and respond to the request.
+/// If the function returns an `Ok(_)` then send a snapshot of the model from the players view.
+/// If the function returns an `Err(error)` then forward this `error` on to the command requester.
+fn do_then_respond<F: FnMut(&mut Model) -> GenericResult<()>>(
+  model: &mut Model,
+  request: &CommandRequest,
+  f: &mut F,
+) {
+  match f(model) {
+    Ok(_) => respond_snapshot(request, model),
+    Err(error) => respond_error(request, error),
+  }
+}
+
+fn move_player(player: Player, location: Location, model: &mut Model) -> GenericResult<()> {
+  model.board.move_player(&player, &location)?;
+
+  let player_cards = model.current_player_cards();
+
+  if player_cards.current_card.is_some()
+    && player_cards.current_card == model.board.item_at(&location).unwrap()
+  {
+    // Player has found the item they're looking for, draw the next item card
+    model.current_player_cards_mut().draw_next();
+  }
+
+  model.end_turn();
+
+  Ok(())
 }

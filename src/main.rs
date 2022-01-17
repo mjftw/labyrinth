@@ -6,6 +6,7 @@ mod model;
 
 use controller::{run_controller, Command, CommandRequest};
 use model::Model;
+use std::collections::HashSet;
 
 use std::sync::mpsc::channel;
 use std::thread;
@@ -16,19 +17,16 @@ fn main() {
     println!("Hello, world!");
 
     let mut rng = rand::thread_rng();
-    let players = vec![Player::Player1, Player::Player2, Player::Player4];
-    let board = Board::new(&mut rng, &players);
-
-    println!("Board:\n{:?}", board);
-    println!("Spare tile:\n{:?}", board.spare);
+    let players: HashSet<Player> = [Player::Player1, Player::Player2, Player::Player4]
+        .into_iter()
+        .collect();
 
     let current_player = Player::Player1;
 
-    let model = Model {
-        board,
-        current_player,
-        players: Vec::new(),
-    };
+    let model = Model::new(&mut rng, &players, current_player).unwrap();
+
+    println!("Board:\n{:?}", model.board);
+    println!("Spare tile:\n{:?}", model.board.spare);
 
     let (controller_tx, controller_rx) = channel();
 

@@ -1,3 +1,4 @@
+extern crate strum_macros;
 extern crate unicode_width;
 use crate::emoji::Emoji;
 use crate::errors::{GenericResult, LocationError, MoveError};
@@ -13,7 +14,7 @@ use std::convert::From;
 use std::fmt;
 use std::iter::Iterator;
 
-#[derive(Copy, Clone)]
+#[derive(Hash, PartialEq, Eq, Copy, Clone, strum_macros::Display, strum_macros::EnumIter)]
 pub enum Item {
   Chest,
   Gnome,
@@ -72,7 +73,7 @@ impl Emoji for Item {
   }
 }
 
-impl fmt::Display for Item {
+impl fmt::Debug for Item {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "{}", self.emoji())
   }
@@ -817,8 +818,20 @@ impl Board {
     }
   }
 
+  // Get the on the tile at the location, if there is one
+  pub fn item_at(&self, location: &Location) -> GenericResult<Option<Item>> {
+    if let Some(tile) = self.placed.get(location) {
+      match tile.tile.marking {
+        Some(TileMarking::Item(item)) => Ok(Some(item)),
+        _ => Ok(None),
+      }
+    } else {
+      Err(Box::new(LocationError::from(location)))
+    }
+  }
+
   /// Create a new board including the fixed tiles, with free tiles placed using the random number generator
-  pub fn new<R: Rng>(rng: &mut R, players: &Vec<Player>) -> Board {
+  pub fn new<R: Rng>(rng: &mut R, players: &HashSet<Player>) -> Board {
     let fixed_tiles = Board::FIXED_TILES.clone().map(|(location, tile)| {
       (
         location,
