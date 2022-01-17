@@ -65,7 +65,7 @@ pub fn run_controller(mut model: Model, command_rx: Receiver<CommandRequest>) {
     println!("{:?} sent command {:?}", request.sent_by, request.command);
 
     if request.sent_by != model.current_player {
-      respond_error(&request, Box::new(WrongPlayer::new("It is not your turn")));
+      respond_error(&request, WrongPlayer::new("It is not your turn").into());
       continue;
     }
 
@@ -73,13 +73,11 @@ pub fn run_controller(mut model: Model, command_rx: Receiver<CommandRequest>) {
       Command::NoOp => respond_snapshot(&request, &model),
       Command::MovePlayer(_, _) if model.turn_phase != TurnPhase::Move => respond_error(
         &request,
-        Box::new(TurnError::new(
-          "It is not time to move, you must first insert the tile",
-        )),
+        TurnError::new("It is not time to move, you must first insert the tile").into(),
       ),
       Command::MovePlayer(player, _) if player != model.current_player => respond_error(
         &request,
-        Box::new(WrongPlayer::new("You cannot move another player")),
+        WrongPlayer::new("You cannot move another player").into(),
       ),
       Command::MovePlayer(player, location) => {
         do_then_respond(&mut model, &request, &mut |model| {
@@ -88,9 +86,7 @@ pub fn run_controller(mut model: Model, command_rx: Receiver<CommandRequest>) {
       }
       Command::InsertTile(_, _) if model.turn_phase != TurnPhase::InsertTile => respond_error(
         &request,
-        Box::new(TurnError::new(
-          "It is not time to insert the tile, you must move",
-        )),
+        TurnError::new("It is not time to insert the tile, you must move").into(),
       ),
       Command::InsertTile(location, rotation) => {
         do_then_respond(&mut model, &request, &mut |model| {
