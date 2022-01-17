@@ -11,7 +11,7 @@ use std::collections::HashSet;
 use std::sync::mpsc::channel;
 use std::thread;
 
-use board::{Board, Location, Player};
+use board::{Board, Location, Player, Rotation};
 
 fn main() {
     println!("Hello, world!");
@@ -25,9 +25,6 @@ fn main() {
 
     let model = Model::new(&mut rng, &players, current_player).unwrap();
 
-    println!("Board:\n{:?}", model.board);
-    println!("Spare tile:\n{:?}", model.board.spare);
-
     let (controller_tx, controller_rx) = channel();
 
     let controller_handle = thread::spawn(move || run_controller(model, controller_rx));
@@ -36,7 +33,7 @@ fn main() {
 
     let request = CommandRequest {
         sent_by: current_player,
-        command: Command::MovePlayer(current_player, Location(2, 1)),
+        command: Command::InsertTile(Location(3, 0), Rotation::Clockwise90),
         respond: respond_tx,
     };
 

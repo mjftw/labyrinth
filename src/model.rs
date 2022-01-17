@@ -5,10 +5,17 @@ use rand::{seq::SliceRandom, Rng};
 use std::collections::{HashMap, HashSet};
 use strum::IntoEnumIterator;
 
+#[derive(Eq, PartialEq)]
+pub enum TurnPhase {
+  Move,
+  InsertTile,
+}
+
 pub struct Model {
   pub board: Board,
   pub players: HashMap<Player, Cards>,
   pub current_player: Player,
+  pub turn_phase: TurnPhase,
 }
 
 impl Model {
@@ -53,6 +60,7 @@ impl Model {
       board,
       players: player_cards,
       current_player: starting_player,
+      turn_phase: TurnPhase::InsertTile,
     })
   }
 

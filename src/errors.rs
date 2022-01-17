@@ -87,3 +87,27 @@ impl Error for WrongPlayer {
     &self.details
   }
 }
+
+#[derive(Debug)]
+pub struct TurnError {
+  details: String,
+}
+
+impl TurnError {
+  pub fn new(message: &str) -> TurnError {
+    TurnError {
+      details: message.to_string(),
+    }
+  }
+}
+impl fmt::Display for TurnError {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "{}", self.details)
+  }
+}
+
+impl Error for TurnError {
+  fn description(&self) -> &str {
+    &self.details
+  }
+}

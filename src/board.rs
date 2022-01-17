@@ -265,7 +265,7 @@ impl Tile {
   };
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum Rotation {
   Zero,
   Clockwise90,

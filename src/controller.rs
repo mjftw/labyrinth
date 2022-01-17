@@ -1,6 +1,6 @@
-use crate::board::{Item, Location, PlacedTile, Player, Tile};
-use crate::errors::{GenericError, GenericResult, WrongPlayer};
-use crate::model::{Cards, Model};
+use crate::board::{Item, Location, PlacedTile, Player, Rotation, Tile};
+use crate::errors::{GenericError, GenericResult, TurnError, WrongPlayer};
+use crate::model::{Cards, Model, TurnPhase};
 use std::collections::{HashMap, HashSet};
 use std::convert::From;
 use std::sync::mpsc::{Receiver, Sender};
@@ -48,6 +48,7 @@ impl Snapshot {
 pub enum Command {
   NoOp,
   MovePlayer(Player, Location),
+  InsertTile(Location, Rotation),
 }
 
 type SnapshotSender = Sender<GenericResult<Snapshot>>;
@@ -70,6 +71,12 @@ pub fn run_controller(mut model: Model, command_rx: Receiver<CommandRequest>) {
 
     match request.command {
       Command::NoOp => respond_snapshot(&request, &model),
+      Command::MovePlayer(_, _) if model.turn_phase != TurnPhase::Move => respond_error(
+        &request,
+        Box::new(TurnError::new(
+          "It is not time to move, you must first insert the tile",
+        )),
+      ),
       Command::MovePlayer(player, _) if player != model.current_player => respond_error(
         &request,
         Box::new(WrongPlayer::new("You cannot move another player")),
@@ -77,6 +84,17 @@ pub fn run_controller(mut model: Model, command_rx: Receiver<CommandRequest>) {
       Command::MovePlayer(player, location) => {
         do_then_respond(&mut model, &request, &mut |model| {
           move_player(player, location, model)
+        })
+      }
+      Command::InsertTile(_, _) if model.turn_phase != TurnPhase::InsertTile => respond_error(
+        &request,
+        Box::new(TurnError::new(
+          "It is not time to insert the tile, you must move",
+        )),
+      ),
+      Command::InsertTile(location, rotation) => {
+        do_then_respond(&mut model, &request, &mut |model| {
+          Ok(model.board.insert_spare(location, rotation)?)
         })
       }
     }
@@ -108,6 +126,7 @@ fn do_then_respond<F: FnMut(&mut Model) -> GenericResult<()>>(
   }
 }
 
+/// Move a player across the board and end their turn
 fn move_player(player: Player, location: Location, model: &mut Model) -> GenericResult<()> {
   model.board.move_player(&player, &location)?;
 
